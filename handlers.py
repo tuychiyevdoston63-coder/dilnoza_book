@@ -27,6 +27,7 @@ async def cmd_start(message: Message, state: FSMContext):
         user = res.scalar_one_or_none()
         
         if not user:
+            # Agar foydalanuvchi bazada bo'lmasa, faqat til tanlash tugmasini ko'rsatamiz
             await message.answer(LEXICON["uz"]["select_lang"], reply_markup=kb.get_lang_keyboard())
         else:
             is_admin = message.from_user.id in settings.admin_list
@@ -34,28 +35,26 @@ async def cmd_start(message: Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("lang_"))
 async def set_language(callback: CallbackQuery, state: FSMContext):
-    current_state = await state.get_state()
+    lang = callback.data.split("_")[1]
     
-    # Agar foydalanuvchi allaqachon ro'yxatdan o'tgan bo'lsa va shunchaki sozlamalardan tilni o'zgartirayotgan bo'lsa
-    if current_state is None:
-        lang = callback.data.split("_")[1]
-        async with async_session() as session:
+    async with async_session() as session:
+        res = await session.execute(select(User).where(User.id == callback.from_user.id))
+        user = res.scalar_one_or_none()
+        
+        if user:
+            # Foydalanuvchi bazada bor bo'lsa, demak u shunchaki "Sozlamalar"dan tilni o'zgartiryapti
             await session.execute(update(User).where(User.id == callback.from_user.id).values(language=lang))
             await session.commit()
-        is_admin = callback.from_user.id in settings.admin_list
-        await callback.message.delete()
-        await callback.message.answer(LEXICON[lang]["main_menu"], reply_markup=kb.get_main_menu(lang, is_admin))
-        return
-
-    # Agar birinchi marta kirib ro'yxatdan o'tayotgan bo'lsa
-    if current_state is not None and current_state in [RegistrationStates.first_name, RegistrationStates.last_name, RegistrationStates.phone_number]:
-        return
-
-    lang = callback.data.split("_")[1]
-    await state.update_data(lang=lang)
-    await callback.message.delete()
-    await callback.message.answer(LEXICON[lang]["welcome_reg"])
-    await state.set_state(RegistrationStates.first_name)
+            is_admin = callback.from_user.id in settings.admin_list
+            await callback.message.delete()
+            await callback.message.answer(LEXICON[lang]["main_menu"], reply_markup=kb.get_main_menu(lang, is_admin))
+            await state.clear()
+        else:
+            # Foydalanuvchi bazada yo'q bo'lsa, ro'yxatdan o'tishni boshlaymiz (Ism so'raymiz)
+            await state.update_data(lang=lang)
+            await callback.message.delete()
+            await callback.message.answer(LEXICON[lang]["welcome_reg"])
+            await state.set_state(RegistrationStates.first_name)
 
 @router.message(RegistrationStates.first_name)
 async def process_firstname(message: Message, state: FSMContext):
@@ -85,7 +84,8 @@ async def process_phone(message: Message, state: FSMContext):
             username=message.from_user.username,
             phone_number=message.contact.phone_number,
             language=lang,
-            is_admin=is_admin
+            is_admin=is_admin,
+            balance=0.0  # Yangi foydalanuvchi balansi boshida 0 bo'ladi
         )
         session.add(new_user)
         await session.commit()
@@ -96,10 +96,14 @@ async def process_phone(message: Message, state: FSMContext):
 # ==================== FOYDALANUVCHI TUGMALARI ====================
 
 @router.message(F.text.in_([LEXICON["uz"]["btn_profile"], LEXICON["ru"]["btn_profile"]]))
-async def show_profile(message: Message):
+async def show_profile(message: Message, state: FSMContext):
     async with async_session() as session:
         user = await session.get(User, message.from_user.id)
-        if not user: return
+        if not user:
+            await state.clear()
+            await message.answer(LEXICON["uz"]["select_lang"], reply_markup=kb.get_lang_keyboard())
+            return
+            
         lang = user.language
         text = (
             f"👤 *Profilingiz:* \n\n"
@@ -183,12 +187,21 @@ async def show_book_details(callback: CallbackQuery):
                                           reply_markup=kb.get_book_action_keyboard(lang, book_id, is_free, has_access))
 
 @router.callback_query(F.data.startswith("buy_"))
-async def buy_book(callback: CallbackQuery):
+async def buy_book(callback: CallbackQuery, state: FSMContext):
     book_id = int(callback.data.split("_")[1])
     async with async_session() as session:
-        lang = await get_user_lang(session, callback.from_user.id)
         user = await session.get(User, callback.from_user.id)
+        
+        if not user:
+            await state.clear()
+            await callback.answer("Siz ro'yxatdan o'tmagansiz. Iltimos /start bosing.", show_alert=True)
+            return
+            
+        lang = user.language
         book = await session.get(Book, book_id)
+        if not book:
+            await callback.answer("Kitob topilmadi.", show_alert=True)
+            return
         
         if user.balance < book.price:
             await callback.answer(LEXICON[lang]["insufficient_funds"], show_alert=True)
@@ -238,10 +251,15 @@ async def show_my_library(message: Message):
 # ==================== BALANS VA TO'LOVLAR ====================
 
 @router.message(F.text.in_([LEXICON["uz"]["btn_balance"], LEXICON["ru"]["btn_balance"]]))
-async def show_balance(message: Message):
+async def show_balance(message: Message, state: FSMContext):
     async with async_session() as session:
-        lang = await get_user_lang(session, message.from_user.id)
         user = await session.get(User, message.from_user.id)
+        if not user:
+            await state.clear()
+            await message.answer(LEXICON["uz"]["select_lang"], reply_markup=kb.get_lang_keyboard())
+            return
+            
+        lang = user.language
         await message.answer(f"💳 Hisobingiz: {user.balance} UZS", reply_markup=kb.get_balance_keyboard(lang))
 
 @router.callback_query(F.data == "deposit")
