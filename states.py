@@ -9,9 +9,14 @@ class BalanceStates(StatesGroup):
     amount = State()
     check = State()
 
+class SearchStates(StatesGroup):
+    query = State()
+
 class AdminStates(StatesGroup):
     add_genre_uz = State()
     add_genre_ru = State()
+    
+    # Kitob qo'shish bosqichlari
     add_book_title = State()
     add_book_author = State()
     add_book_genre = State()
@@ -21,4 +26,5 @@ class AdminStates(StatesGroup):
     add_book_photo = State()
     add_book_file = State()
     add_book_audio = State()
+    
     broadcast_msg = State()
