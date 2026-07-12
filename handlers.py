@@ -1,5 +1,5 @@
 from aiogram import Router, F, Bot
-from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
+from aiogram.types import Message, CallbackQuery
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from sqlalchemy.future import select
@@ -34,6 +34,23 @@ async def cmd_start(message: Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("lang_"))
 async def set_language(callback: CallbackQuery, state: FSMContext):
+    current_state = await state.get_state()
+    
+    # Agar foydalanuvchi allaqachon ro'yxatdan o'tgan bo'lsa va shunchaki sozlamalardan tilni o'zgartirayotgan bo'lsa
+    if current_state is None:
+        lang = callback.data.split("_")[1]
+        async with async_session() as session:
+            await session.execute(update(User).where(User.id == callback.from_user.id).values(language=lang))
+            await session.commit()
+        is_admin = callback.from_user.id in settings.admin_list
+        await callback.message.delete()
+        await callback.message.answer(LEXICON[lang]["main_menu"], reply_markup=kb.get_main_menu(lang, is_admin))
+        return
+
+    # Agar birinchi marta kirib ro'yxatdan o'tayotgan bo'lsa
+    if current_state is not None and current_state in [RegistrationStates.first_name, RegistrationStates.last_name, RegistrationStates.phone_number]:
+        return
+
     lang = callback.data.split("_")[1]
     await state.update_data(lang=lang)
     await callback.message.delete()
@@ -82,9 +99,10 @@ async def process_phone(message: Message, state: FSMContext):
 async def show_profile(message: Message):
     async with async_session() as session:
         user = await session.get(User, message.from_user.id)
+        if not user: return
         lang = user.language
         text = (
-            f"👤 *Profiliz:* \n\n"
+            f"👤 *Profilingiz:* \n\n"
             f"ID: `{user.id}`\n"
             f"Ism: {user.first_name}\n"
             f"Familiya: {user.last_name or '-'}\n"
@@ -96,22 +114,10 @@ async def show_profile(message: Message):
 
 @router.message(F.text.in_([LEXICON["uz"]["btn_settings"], LEXICON["ru"]["btn_settings"]]))
 async def show_settings(message: Message):
-    await message.answer("Tilni o'zgartirish / Smena yazyka:", reply_markup=kb.get_lang_keyboard())
-
-@router.callback_query(F.data.startswith("lang_"), ~RegistrationStates.first_name)
-async def change_existing_lang(callback: CallbackQuery):
-    lang = callback.data.split("_")[1]
-    async with async_session() as session:
-        await session.execute(update(User).where(User.id == callback.from_user.id).values(language=lang))
-        await session.commit()
-    is_admin = callback.from_user.id in settings.admin_list
-    await callback.message.delete()
-    await callback.message.answer(LEXICON[lang]["main_menu"], reply_markup=kb.get_main_menu(lang, is_admin))
+    await message.answer("Tilni o'zgartirish / Смена языка:", reply_markup=kb.get_lang_keyboard())
 
 @router.message(F.text.in_([LEXICON["uz"]["btn_search"], LEXICON["ru"]["btn_search"]]))
 async def start_search(message: Message, state: FSMContext):
-    async with async_session() as session:
-        lang = await get_user_lang(session, message.from_user.id)
     await message.answer("🔍 Kitob nomini yoki muallifini kiriting:")
     await state.set_state(SearchStates.query)
 
@@ -409,7 +415,6 @@ async def add_book_author(message: Message, state: FSMContext):
     async with async_session() as session:
         res = await session.execute(select(Genre))
         genres = res.scalars().all()
-        lang = await get_user_lang(session, message.from_user.id)
     
     from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
     keyboard = []
@@ -449,21 +454,21 @@ async def add_book_desc_ru(message: Message, state: FSMContext):
     await message.answer("🖼 Kitob muqovasi rasmini yuboring (Agar rasm bo'lmasa /skip bosing):")
     await state.set_state(AdminStates.add_book_photo)
 
-@router.message(AdminStates.add_book_photo, F.photo | F.text)
+@router.message(AdminStates.add_book_photo)
 async def add_book_photo(message: Message, state: FSMContext):
     photo_id = message.photo[-1].file_id if message.photo else None
     await state.update_data(photo_id=photo_id)
     await message.answer("📂 Kitob PDF faylini (Document) yuboring (Bo'lmasa /skip bosing):")
     await state.set_state(AdminStates.add_book_file)
 
-@router.message(AdminStates.add_book_file, F.document | F.text)
+@router.message(AdminStates.add_book_file)
 async def add_book_file(message: Message, state: FSMContext):
     file_id = message.document.file_id if message.document else None
     await state.update_data(file_id=file_id)
     await message.answer("🎵 Kitob Audio faylini yuboring (Bo'lmasa /skip bosing):")
     await state.set_state(AdminStates.add_book_audio)
 
-@router.message(AdminStates.add_book_audio, F.audio | F.text)
+@router.message(AdminStates.add_book_audio)
 async def add_book_audio(message: Message, state: FSMContext):
     audio_id = message.audio.file_id if message.audio else None
     data = await state.get_data()
