@@ -27,7 +27,13 @@ async def main():
     await init_db()
     
     # 3. Bot va Dispatcher-ni sozlash
-    bot = Bot(token=settings.bot_token)
+    # 3. Bot va Dispatcher-ni sozlash (Tokenni xavfsiz aniqlash)
+    token = getattr(settings, 'bot_token', None) or getattr(settings, 'BOT_TOKEN', None) or os.environ.get("BOT_TOKEN")
+    
+    if not token:
+        raise ValueError("❌ XATOLIK: Bot token topilmadi! config.py yoki Render Environment Variables-ni tekshiring.")
+        
+    bot = Bot(token=token)
     dp = Dispatcher()
     dp.include_router(router)
     
