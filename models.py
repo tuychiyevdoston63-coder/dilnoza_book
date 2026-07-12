@@ -1,7 +1,7 @@
 from sqlalchemy import BigInteger, String, Integer, Float, Boolean, ForeignKey, DateTime, func
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 from datetime import datetime
-from app.database import Base
+from database import Base
 
 class User(Base):
     __tablename__ = "users"
@@ -52,5 +52,5 @@ class Transaction(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     amount: Mapped[float] = mapped_column(Float)
     check_file_id: Mapped[str] = mapped_column(String(255))
-    status: Mapped[str] = mapped_column(String(20), default="pending") # pending, approved, rejected
+    status: Mapped[str] = mapped_column(String(20), default="pending")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
