@@ -2,20 +2,19 @@ import asyncio
 import logging
 import sys
 from aiogram import Bot, Dispatcher
-from app.config import settings
-from app.database import init_db
-from app.handlers import router
+from config import settings
+from database import init_db
+from handlers import router
 
 async def main():
     logging.basicConfig(level=logging.INFO, stream=sys.stdout)
     
-    # Ma'lumotlar bazasini initsializatsiya qilish (Jadvallarni yaratish)
+    # Jadvallarni avtomatik yaratish
     await init_db()
     
     bot = Bot(token=settings.BOT_TOKEN)
     dp = Dispatcher()
     
-    # Routerlarni ulash
     dp.include_router(router)
     
     logging.info("Bot ishga tushmoqda...")
