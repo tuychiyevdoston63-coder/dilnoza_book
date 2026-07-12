@@ -1,16 +1,16 @@
 from aiogram import Router, F, Bot
 from aiogram.types import Message, CallbackQuery
-from aiogram.filters import CommandStart, Command
+from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from sqlalchemy.future import select
-from sqlalchemy import func, update, delete
+from sqlalchemy import func, update
 
-from app.database import async_session
-from app.models import User, Genre, Book, Library, Transaction
-from app.lexicon import LEXICON
-from app.states import RegistrationStates, BalanceStates, AdminStates
-from app import keyboards as kb
-from app.config import settings
+from database import async_session
+from models import User, Genre, Book, Library, Transaction
+from lexicon import LEXICON
+from states import RegistrationStates, BalanceStates, AdminStates
+import keyboards as kb
+from config import settings
 
 router = Router()
 
@@ -74,8 +74,6 @@ async def process_phone(message: Message, state: FSMContext):
         
     await message.answer(LEXICON[lang]["main_menu"], reply_markup=kb.get_main_menu(lang, is_admin))
     await state.clear()
-
-# --- KATALOG & XARID TIZIMI ---
 
 @router.message(F.text.in_([LEXICON["uz"]["btn_catalog"], LEXICON["ru"]["btn_catalog"]]))
 async def show_catalog(message: Message):
@@ -145,9 +143,7 @@ async def view_file(callback: CallbackQuery, bot: Bot):
     f_type, book_id = parts[1], int(parts[2])
     
     async with async_session() as session:
-        lang = await get_user_lang(session, callback.from_user.id)
         book = await session.get(Book, book_id)
-        
         lib_res = await session.execute(select(Library).where(Library.user_id == callback.from_user.id, Library.book_id == book_id))
         has_access = lib_res.scalar_one_or_none() is not None
         is_free = book.price == 0.0
@@ -161,9 +157,7 @@ async def view_file(callback: CallbackQuery, bot: Bot):
         elif f_type == "audio" and book.audio_id:
             await bot.send_audio(callback.from_user.id, book.audio_id)
         else:
-            await callback.answer("Fayl topilmadi yoki yuklanmagan.", show_alert=True)
-
-# --- MENING KUTUBXONAM ---
+            await callback.answer("Fayl topilmadi.", show_alert=True)
 
 @router.message(F.text.in_([LEXICON["uz"]["btn_my_lib"], LEXICON["ru"]["btn_my_lib"]]))
 async def show_my_library(message: Message):
@@ -175,8 +169,6 @@ async def show_my_library(message: Message):
             await message.answer(LEXICON[lang]["no_books"])
             return
         await message.answer("Sizning kitoblaringiz:", reply_markup=kb.get_books_keyboard(books))
-
-# --- BALANS VA TO'LDIRISH TIZIMI ---
 
 @router.message(F.text.in_([LEXICON["uz"]["btn_balance"], LEXICON["ru"]["btn_balance"]]))
 async def show_balance(message: Message):
@@ -218,7 +210,7 @@ async def process_deposit_check(message: Message, state: FSMContext, bot: Bot):
         
     await message.answer(LEXICON[lang]["check_sent_admin"])
     
-    # Adminlarni ogohlantirish
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
     for admin_id in settings.admin_list:
         try:
             admin_kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -229,8 +221,6 @@ async def process_deposit_check(message: Message, state: FSMContext, bot: Bot):
         except Exception:
             pass
     await state.clear()
-
-# --- ADMIN PANEL & STATISTIKA ---
 
 @router.message(F.text == "👑 Admin Panel")
 async def cmd_admin_panel(message: Message):
@@ -247,7 +237,7 @@ async def show_stats(message: Message):
         t_count = await session.scalar(select(func.count(Transaction.id)))
         total_bal = await session.scalar(select(func.sum(User.balance))) or 0.0
         
-        await message.answer(f"📊 Statistika:\n• Foydalanuvchilar: {u_count}\n• Kitoblar: {b_count}\n• Janrlar: {g_count}\n• To'lovlar soni: {t_count}\n• Jami joriy balanslar: {total_bal} UZS")
+        await message.answer(f"📊 Statistika:\n• Foydalanuvchilar: {u_count}\n• Kitoblar: {b_count}\n• Janrlar: {g_count}\n• To'lovlar: {t_count}\n• Jami balans: {total_bal} UZS")
 
 @router.callback_query(F.data.startswith("tx_"))
 async def handle_transaction_status(callback: CallbackQuery, bot: Bot):
@@ -260,17 +250,17 @@ async def handle_transaction_status(callback: CallbackQuery, bot: Bot):
             if action == "approve":
                 tx.status = "approved"
                 await session.execute(update(User).where(User.id == tx.user_id).values(balance=User.balance + tx.amount))
-                await bot.send_message(tx.user_id, f"To'lovingiz tasdiqlandi! Hisobingizga {tx.amount} UZS qo'shildi.")
+                await bot.send_message(tx.user_id, f"To'lovingiz tasdiqlandi! +{tx.amount} UZS")
             else:
                 tx.status = "rejected"
-                await bot.send_message(tx.user_id, "To'lovingiz rad etildi. Muammo bo'lsa adminga yozing.")
+                await bot.send_message(tx.user_id, "To'lovingiz rad etildi.")
             await session.commit()
             await callback.message.edit_caption(caption=callback.message.caption + f"\n\nStatus: {tx.status.upper()}")
 
 @router.message(F.text == "📢 Reklama yuborish")
 async def start_broadcast(message: Message, state: FSMContext):
     if message.from_user.id in settings.admin_list:
-        await message.answer("Reklama postini (matn, rasm yoki video) yuboring:")
+        await message.answer("Reklama postini yuboring:")
         await state.set_state(AdminStates.broadcast_msg)
 
 @router.message(AdminStates.broadcast_msg)
@@ -310,5 +300,3 @@ async def add_genre_ru(message: Message, state: FSMContext):
         await session.commit()
     await message.answer("Janr muvaffaqiyatli qo'shildi!")
     await state.clear()
-
-# Qo'shimcha profil va sozlamalar handlerlarini shu yerga ulash mumkin.
