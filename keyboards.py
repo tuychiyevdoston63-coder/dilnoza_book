@@ -22,17 +22,25 @@ def get_main_menu(lang: str, is_admin: bool = False) -> ReplyKeyboardMarkup:
         buttons.append([KeyboardButton(text="👑 Admin Panel")])
     return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
 
-def get_genres_keyboard(genres: list, lang: str) -> InlineKeyboardMarkup:
+def get_genres_keyboard(genres: list, lang: str, is_admin: bool = False) -> InlineKeyboardMarkup:
     keyboard = []
     for g in genres:
         name = g.name_uz if lang == "uz" else g.name_ru
         keyboard.append([InlineKeyboardButton(text=name, callback_data=f"genre_{g.id}")])
+    
+    if is_admin:
+        for g in genres:
+            name = g.name_uz if lang == "uz" else g.name_ru
+            keyboard.append([InlineKeyboardButton(text=f"❌ {name} (O'chirish)", callback_data=f"delgenre_{g.id}")])
+            
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
-def get_books_keyboard(books: list) -> InlineKeyboardMarkup:
+def get_books_keyboard(books: list, is_admin: bool = False) -> InlineKeyboardMarkup:
     keyboard = []
     for b in books:
         keyboard.append([InlineKeyboardButton(text=b.title, callback_data=f"book_{b.id}")])
+        if is_admin:
+            keyboard.append([InlineKeyboardButton(text=f"🗑 {b.title} (O'chirish)", callback_data=f"delbook_{b.id}")])
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 def get_book_action_keyboard(lang: str, book_id: int, is_free: bool, has_access: bool) -> InlineKeyboardMarkup:
