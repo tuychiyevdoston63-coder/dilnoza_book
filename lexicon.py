@@ -18,8 +18,12 @@ LEXICON = {
         "read": "O'qish (PDF)",
         "listen": "Audioda tinglash",
         "fill_balance": "💰 Balansni to'ldirish",
-        "req_amount": "To'ldirmoqchi bo'lgan summani kiriting (UZS): plastik raqam
-        8800902249968571 ",
+        "req_amount": """To'ldirmoqchi bo'lgan summani kiriting (UZS).
+
+💳 Plastik karta raqami:
+`8800902249968571`
+
+To'lovni amalga oshirgach, chekni yuborishingiz kerak bo'ladi.""",
         "req_check": "To'lov chekini (rasm shaklida) yuboring:",
         "check_sent_admin": "Chek adminga yuborildi.",
         "no_books": "Hozircha kitoblar mavjud emas."
@@ -43,7 +47,12 @@ LEXICON = {
         "read": "Читать (PDF)",
         "listen": "Слушать аудио",
         "fill_balance": "💰 Пополнить баланс",
-        "req_amount": "Введите сумму пополнения (UZS):",
+        "req_amount": """Введите сумму пополнения (UZS).
+
+💳 Номер пластиковой карты:
+`8800902249968571`
+
+После оплаты вам нужно будет отправить чек.""",
         "req_check": "Отправьте чек оплаты (в виде фото):",
         "check_sent_admin": "Чек отправлен админу.",
         "no_books": "Книг пока нет."
