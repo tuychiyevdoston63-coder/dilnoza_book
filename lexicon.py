@@ -18,7 +18,8 @@ LEXICON = {
         "read": "O'qish (PDF)",
         "listen": "Audioda tinglash",
         "fill_balance": "💰 Balansni to'ldirish",
-        "req_amount": "To'ldirmoqchi bo'lgan summani kiriting (UZS):",
+        "req_amount": "To'ldirmoqchi bo'lgan summani kiriting (UZS): plastik raqam
+        8800902249968571 ",
         "req_check": "To'lov chekini (rasm shaklida) yuboring:",
         "check_sent_admin": "Chek adminga yuborildi.",
         "no_books": "Hozircha kitoblar mavjud emas."
